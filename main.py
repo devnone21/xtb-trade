@@ -474,8 +474,6 @@ class Client(BaseClient):
             self._close_trade_only(trade_id)
 
 
-usr = ("15351881", "wx+-jLk*9Be!a%*")
-
 def trigger_update_price():
     return
 
@@ -490,12 +488,24 @@ def trigger_open_trade(symbol):
         trigger_notify()
     return
 
-# Initial connection
-client = Client()
-client.login(usr[0], usr[1], mode='demo')
 
-# Check if market is open for the symbol
-market_status = client.check_if_market_open(['GOLD', 'EURUSD'])
+# Settings.json
+settings = {
+    'racer': {'name': '15351881', 'shield': 'wx+-jLk*9Be!a%*', 'action': 'demo'},
+    'symbols': ['GOLD', 'EURUSD'],
+}
+
+# Initial connection
+racer = settings.get('racer')
+symbols = settings.get('symbols')
+print(f'Prepare: {settings}')
+client = Client()
+client.login(racer['name'], racer['shield'], mode=racer['action'])
+print('Enter the Gate.')
+
+# Check if market is open
+market_status = client.check_if_market_open(symbols)
+print(f'Ready: {market_status}')
 for symbol in market_status.keys():
     # trigger_update_price()
     # if market_status[symbol]:
