@@ -202,7 +202,7 @@ class BaseClient(object):
         """getChartRangeRequest command"""
         if not isinstance(ticks, int):
             raise ValueError(f"ticks value {ticks} must be int")
-        self._check_login()
+        # self._check_login()
         args = {
             "end": end * 1000,
             "period": period,
@@ -428,10 +428,10 @@ class Client(BaseClient):
         else:
             raise ValueError("mode can be buy or sell")
         mode_name = mode.name
-        mode = mode.value
+        mode_value = mode.value
         conversion_mode = {MODES.BUY.value: 'ask', MODES.SELL.value: 'bid'}
-        price = self.get_symbol(symbol)[conversion_mode[mode]]
-        response = self.trade_transaction(symbol, mode, 0, volume, price=price)
+        price = self.get_symbol(symbol)[conversion_mode[mode_value]]
+        response = self.trade_transaction(symbol, mode_value, 0, volume, price=price)
         self.update_trades()
         status = self.trade_transaction_status(response['order'])[
             'requestStatus']
@@ -474,18 +474,21 @@ class Client(BaseClient):
             self._close_trade_only(trade_id)
 
 
-def trigger_update_price():
-    return
+def indicator_signal(symbol, algo):
+    today = datetime.today()
+    mode = 'buy' if int(today.hour) % 2 == 1 else 'sell'
+    cross = int(today.minute) % 2 == 1
+    return cross, mode
 
-def trigger_notify():
-    return
-
-def trigger_open_trade(symbol):
+def trigger_open_trade(symbol, mode='buy', volume=0.1):
     try:
-        client.open_trade(mode='buy', symbol=symbol, volume=1)
+        client.open_trade(mode, symbol, volume)
     except TransactionRejected:
         # May send notification
         trigger_notify()
+    return
+
+def trigger_notify():
     return
 
 
@@ -493,11 +496,13 @@ def trigger_open_trade(symbol):
 settings = {
     'racer': {'name': '15351881', 'shield': 'wx+-jLk*9Be!a%*', 'action': 'demo'},
     'symbols': ['GOLD', 'EURUSD'],
+    'algorithm': 'EMA_50-SMA_200',
 }
 
 # Initial connection
 racer = settings.get('racer')
 symbols = settings.get('symbols')
+algo = settings.get('algorithm')
 print(f'Prepare: {settings}')
 client = Client()
 client.login(racer['name'], racer['shield'], mode=racer['action'])
@@ -507,8 +512,12 @@ print('Enter the Gate.')
 market_status = client.check_if_market_open(symbols)
 print(f'Ready: {market_status}')
 for symbol in market_status.keys():
-    # trigger_update_price()
-    # if market_status[symbol]:
-    trigger_open_trade(symbol)
+    if not market_status[symbol]:
+        continue
+    crossover, mode = indicator_signal(symbol, algo)
+    print(f'Signal: [{symbol}, {crossover}, {mode}]')
+    if crossover:
+        trigger_open_trade(symbol=symbol, mode=mode)
+        print(f'Open: [{symbol}, {mode}]')
 
 client.logout()

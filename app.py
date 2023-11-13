@@ -1,5 +1,5 @@
 from XTBApi.api import Client
-from XTBApi.exceptions import *
+from XTBApi.exceptions import TransactionRejected
 
 usr = ("15351881", "wx+-jLk*9Be!a%*")
 
