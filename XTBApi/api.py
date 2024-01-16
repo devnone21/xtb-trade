@@ -7,18 +7,18 @@ XTBApi.api
 Main module
 """
 
+# import inspect
 import enum
 import json
-import logging
 import time
 from datetime import datetime
-
-from websocket import create_connection
-from websocket._exceptions import WebSocketConnectionClosedException
-
+from websockets.sync.client import connect
+from websockets.exceptions import WebSocketException
 from XTBApi.exceptions import *
+import logging
 
 LOGGER = logging.getLogger('XTBApi.api')
+LOGGER.setLevel(logging.INFO)
 LOGIN_TIMEOUT = 120
 MAX_TIME_INTERVAL = 0.200
 
@@ -39,7 +39,7 @@ class MODES(enum.Enum):
     CREDIT = 7
 
 
-class TRANS_TYPES(enum.Enum):
+class TXTYPE(enum.Enum):
     OPEN = 0
     PENDING = 1
     CLOSE = 2
@@ -111,7 +111,7 @@ class BaseClient(object):
         try:
             return func(*args, **kwargs)
         except SocketError as e:
-            LOGGER.info("re-logging in due to LOGIN_TIMEOUT gone")
+            LOGGER.info(f"re-logging in due to LOGIN_TIMEOUT gone. ({e})")
             self.login(self._login_data[0], self._login_data[1])
             return func(*args, **kwargs)
         except Exception as e:
@@ -128,11 +128,12 @@ class BaseClient(object):
         try:
             self.ws.send(json.dumps(dict_data))
             response = self.ws.recv()
-        except WebSocketConnectionClosedException:
+        except WebSocketException:
             raise SocketError()
         self._time_last_request = time.time()
         res = json.loads(response)
         if res['status'] is False:
+            self.LOGGER.debug(res)
             raise CommandFailed(res)
         if 'returnData' in res.keys():
             self.LOGGER.info("CMD: done")
@@ -146,7 +147,7 @@ class BaseClient(object):
     def login(self, user_id, password, mode='demo'):
         """login command"""
         data = _get_data("login", userId=user_id, password=password)
-        self.ws = create_connection(f"wss://ws.xtb.com/{mode}")
+        self.ws = connect(f"wss://ws.xtb.com/{mode}")
         response = self._send_command(data)
         self._login_data = (user_id, password)
         self.status = STATUS.LOGGED
@@ -283,6 +284,7 @@ class BaseClient(object):
 
     def get_trading_hours(self, trade_position_list):
         """getTradingHours command"""
+        # EDITED IN ALPHA2
         data = _get_data("getTradingHours", symbols=trade_position_list)
         self.LOGGER.info(f"CMD: get trading hours of len "
                          f"{len(trade_position_list)}...")
@@ -308,15 +310,20 @@ class BaseClient(object):
         self.LOGGER.info("CMD: get ping...")
         self._send_command_with_check(data)
 
-    def trade_transaction(self, symbol, mode, trans_type, volume, stop_loss=0,
-                          take_profit=0, **kwargs):
+    def trade_transaction(self, symbol, mode, trans_type, volume, price,
+                          stop_loss=0, take_profit=0, **kwargs):
         """tradeTransaction command"""
         # check type
-        if trans_type not in [x.value for x in TRANS_TYPES]:
+        if trans_type not in [x.value for x in TXTYPE]:
             raise ValueError(f"Type must be in {[x for x in trans_type]}")
         # check sl & tp
         stop_loss = float(stop_loss)
         take_profit = float(take_profit)
+        # new check sl & tp
+        from decimal import Decimal
+        # price = kwargs.pop('price', 0.0)
+        stop_loss = float(Decimal(str(stop_loss)).quantize(Decimal(str(price))))
+        take_profit = float(Decimal(str(take_profit)).quantize(Decimal(str(price))))
         # check kwargs
         accepted_values = ['order', 'price', 'expiration', 'customComment',
                            'offset', 'sl', 'tp']
@@ -328,17 +335,17 @@ class BaseClient(object):
             'symbol': symbol,
             'type': trans_type,
             'volume': volume,
+            'price': price,
             'sl': stop_loss,
             'tp': take_profit
         }
         info.update(kwargs)  # update with kwargs parameters
         data = _get_data("tradeTransaction", tradeTransInfo=info)
         name_of_mode = [x.name for x in MODES if x.value == mode][0]
-        name_of_type = [x.name for x in TRANS_TYPES if x.value ==
-                        trans_type][0]
+        name_of_type = [x.name for x in TXTYPE if x.value == trans_type][0]
         self.LOGGER.info(f"CMD: trade transaction of {symbol} of mode "
                          f"{name_of_mode} with type {name_of_type} of "
-                         f"{volume}...")
+                         f"{volume}, data={data}...")
         return self._send_command_with_check(data)
 
     def trade_transaction_status(self, order_id):
@@ -383,7 +390,7 @@ class Client(BaseClient):
         market_values = {}
         for symbol in response:
             today_values = [day for day in symbol['trading'] if day['day'] ==
-                _td.isoweekday()]
+                            _td.isoweekday()]
             if not today_values:
                 market_values[symbol['symbol']] = False
                 continue
@@ -392,7 +399,6 @@ class Client(BaseClient):
                 market_values[symbol['symbol']] = True
             else:
                 market_values[symbol['symbol']] = False
-        self.LOGGER.debug(market_values)
         return market_values
 
     def get_lastn_candle_history(self, symbol, timeframe_in_seconds, number):
@@ -406,8 +412,11 @@ class Client(BaseClient):
                      f" {time.time() - sec_prior}")
         res = {'rateInfos': []}
         while len(res['rateInfos']) < number:
-            res = self.get_chart_last_request(symbol,
-                timeframe_in_seconds // 60, time.time() - sec_prior)
+            res = self.get_chart_last_request(
+                symbol,
+                timeframe_in_seconds // 60,
+                time.time() - sec_prior
+            )
             LOGGER.debug(res)
             res['rateInfos'] = res['rateInfos'][-number:]
             sec_prior *= 3
@@ -418,9 +427,10 @@ class Client(BaseClient):
             cl_pr = (_pr + candle['close']) / 10 ** res['digits']
             hg_pr = (_pr + candle['high']) / 10 ** res['digits']
             lw_pr = (_pr + candle['low']) / 10 ** res['digits']
-            new_candle_entry = {'timestamp': candle['ctm'] / 1000, 'open':
-                op_pr, 'close': cl_pr, 'high': hg_pr, 'low': lw_pr,
-                                'volume': candle['vol']}
+            new_candle_entry = {
+                'timestamp': candle['ctm'] / 1000, 'open': op_pr, 'close': cl_pr,
+                'high': hg_pr, 'low': lw_pr, 'volume': candle['vol']
+            }
             candle_history.append(new_candle_entry)
         LOGGER.debug(candle_history)
         return candle_history
@@ -432,12 +442,13 @@ class Client(BaseClient):
         for trade in trades:
             obj_trans = Transaction(trade)
             self.trade_rec[obj_trans.order_id] = obj_trans
-        #values_to_del = [key for key, trad_not_listed in
+        # values_to_del = [key for key, trad_not_listed in
         #                 self.trade_rec.items() if trad_not_listed.order_id
         #                 not in [x['order'] for x in trades]]
-        #for key in values_to_del:
+        # for key in values_to_del:
         #    del self.trade_rec[key]
         self.LOGGER.info(f"updated {len(self.trade_rec)} trades")
+        # self.LOGGER.info(trades)
         return self.trade_rec
 
     def get_trade_profit(self, trans_id):
@@ -447,7 +458,7 @@ class Client(BaseClient):
         self.LOGGER.info(f"got trade profit of {profit}")
         return profit
 
-    def open_trade(self, mode, symbol, volume):
+    def open_trade(self, mode, symbol, volume, **kwargs):
         """open trade transaction"""
         if mode in [MODES.BUY.value, MODES.SELL.value]:
             mode = [x for x in MODES if x.value == mode][0]
@@ -457,21 +468,45 @@ class Client(BaseClient):
         else:
             raise ValueError("mode can be buy or sell")
         mode_name = mode.name
-        mode = mode.value
-        self.LOGGER.debug(f"opening trade of {symbol} of {volume} with "
+        mode_value = mode.value
+        self.LOGGER.info(f"opening trade of {symbol} of {volume} with "
                           f"{mode_name}")
         conversion_mode = {MODES.BUY.value: 'ask', MODES.SELL.value: 'bid'}
-        price = self.get_symbol(symbol)[conversion_mode[mode]]
-        response = self.trade_transaction(symbol, mode, 0, volume, price=price)
+        res_symbol = self.get_symbol(symbol)
+        price = res_symbol[conversion_mode[mode_value]]
+        digits = res_symbol['precision']
+        _tp = _sl = 0
+        # safeguard by rate
+        rate_tp = kwargs.pop("rate_tp", 0)
+        rate_sl = kwargs.pop("rate_sl", 0)
+        if mode_value == MODES.BUY.value:
+            _tp = price * (1 + rate_tp) if rate_tp else _tp
+            _sl = price * (1 - rate_sl) if rate_sl else _sl
+        elif mode_value == MODES.SELL.value:
+            _tp = price * (1 - rate_tp) if rate_tp else _tp
+            _sl = price * (1 + rate_sl) if rate_sl else _sl
+        # safeguard by pip
+        pip_tp = kwargs.pop("pip_tp", 0) / 10**digits
+        pip_sl = kwargs.pop("pip_sl", 0) / 10**digits
+        if mode_value == MODES.BUY.value:
+            _tp = price + pip_tp if pip_tp else _tp
+            _sl = price - pip_sl if pip_sl else _sl
+        elif mode_value == MODES.SELL.value:
+            _tp = price - pip_tp if pip_tp else _tp
+            _sl = price + pip_sl if pip_sl else _sl
+        # safeguard by value
+        tp = kwargs.pop("tp", _tp)
+        sl = kwargs.pop("sl", _sl)
+        response = self.trade_transaction(symbol, mode_value, 0, volume,
+                                          price=price, take_profit=tp, stop_loss=sl)
         self.update_trades()
-        status = self.trade_transaction_status(response['order'])[
-            'requestStatus']
-        self.LOGGER.debug(f"open_trade completed with status of {status}")
+        status = self.trade_transaction_status(response['order'])['requestStatus']
+        self.LOGGER.info(f"open_trade completed with status of {status}")
         if status != 3:
             raise TransactionRejected(status)
         return response
 
-    def _close_trade_only(self, order_id):
+    def close_trade_only(self, order_id):
         """faster but less secure"""
         trade = self.trade_rec[order_id]
         self.LOGGER.debug(f"closing trade {order_id}")
@@ -485,8 +520,7 @@ class Client(BaseClient):
                 return 'BE51'
             else:
                 raise
-        status = self.trade_transaction_status(
-            response['order'])['requestStatus']
+        status = self.trade_transaction_status(response['order'])['requestStatus']
         self.LOGGER.debug(f"close_trade completed with status of {status}")
         if status != 3:
             raise TransactionRejected(status)
@@ -499,7 +533,7 @@ class Client(BaseClient):
         else:
             order_id = trans
         self.update_trades()
-        return self._close_trade_only(order_id)
+        return self.close_trade_only(order_id)
 
     def close_all_trades(self):
         """close all trades"""
@@ -507,4 +541,28 @@ class Client(BaseClient):
         self.LOGGER.debug(f"closing {len(self.trade_rec)} trades")
         trade_ids = self.trade_rec.keys()
         for trade_id in trade_ids:
-            self._close_trade_only(trade_id)
+            self.close_trade_only(trade_id)
+
+    def get_market_status(self, list_of_symbols):
+        """check if market status is open for symbol in symbols"""
+        from pytz import utc
+        gmt_time = datetime.now(tz=utc)
+        gmt_date = gmt_time.date()
+        sec_from_gmt_midnight = 3600*gmt_time.hour + 60*gmt_time.minute + gmt_time.second
+        response = self.get_trading_hours(list_of_symbols)
+        status = {}
+        for res in response:
+            today_market = {'open':mkt for mkt in res['trading'] if mkt['day'] == gmt_date.isoweekday()}
+            if not today_market:
+                status[res['symbol']] = False
+                continue
+            market_open = today_market['open']
+            if market_open['fromT'] <= sec_from_gmt_midnight <= market_open['toT']:
+                status[res['symbol']] = True
+            else:
+                status[res['symbol']] = False
+        return status
+
+# - next features -
+# TODO: withdraw
+# TODO: deposit

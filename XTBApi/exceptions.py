@@ -17,6 +17,10 @@ class CommandFailed(Exception):
     def __init__(self, response):
         self.msg = "command failed"
         self.err_code = response['errorCode']
+        self.msg = "command failed with error code {} - {}".format(
+            self.err_code, response['errorDescr']
+        )
+        LOGGER.error(self.msg)
         super().__init__(self.msg)
 
 
