@@ -58,6 +58,12 @@ class Result:
 
 
 def run():
+    # Start here
+    breaker = Breaker()
+    breaker.check()
+    if not breaker.status and conf.race_mode == 'real':
+        LOGGER.debug('Breaker is OFF.')
+        return
     client = Client()
     client.login(conf.race_name, conf.race_pass, mode=conf.race_mode)
     gcp = Cloud()
