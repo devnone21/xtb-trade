@@ -68,7 +68,7 @@ def run(app):
     # init chat notification
     report = Notify(title=f'[{app.name.upper()}-{x.account.name}]')
     # check if App's timing to be run
-    if report.ts.minute % x.timeframe > 10:
+    if report.ts.minute % x.timeframe > 5:
         return False
     # Start here
     logger.debug(f'Running: {app.param}')
