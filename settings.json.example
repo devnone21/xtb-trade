@@ -1,14 +1,20 @@
 {
-    "symbols": ["GOLD", "EURUSD"],
-    "timeframe": 15,
-    "volume": 0.1,
-    "rate_tp": 0,
-    "rate_sl": 0,
-    "algorithm": "rsi",
-    "TA_RSI": [
+    "rayId": "QAZwsx123456",
+    "_comment": "Local json",
+    "profiles": [
         {
-            "kind": "rsi", "length": 14, "signal_indicators": true,
-            "xa": 70, "xb": 30
+            "name": "demo-1",
+            "param": {
+                "account": "15580085",
+                "breaker": false,
+                "symbols": ["GOLD", "OIL.WTI"],
+                "timeframe": 15,
+                "volume": 0.01,
+                "rate_tp": 0,
+                "rate_sl": 0,
+                "indicator": "rsi",
+                "ind_preset": "TA_RSI_L14_XA70_XB30"
+            }
         }
     ]
 }

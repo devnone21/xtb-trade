@@ -1,14 +1,16 @@
-from _init import *
+import time
+from initial import *
+from classes import Cache, Fx, Trade, Notify, Cloud
 from XTBApi.api import Client
 from redis.exceptions import ConnectionError
 from datetime import datetime
 from pandas import DataFrame
-LOGGER.setLevel(logging.DEBUG)
 
 
 class Result:
-    def __init__(self, symbol):
+    def __init__(self, symbol, app):
         self.symbol = symbol
+        self.app = app
         self.market_status = False
         self.df = DataFrame()
         self.digits = 5
@@ -18,94 +20,121 @@ class Result:
         self.mode = ''
 
     def get_signal(self, client=None):
+        logger = logging.getLogger(f'xtb.{self.app.name}')
+        logger.setLevel(logging.DEBUG)
+        x = self.app.param
         # get charts
         now = int(datetime.now().timestamp())
-        res = client.get_chart_range_request(self.symbol, conf.period, now, now, -100) if client else {}
+        res = client.get_chart_range_request(self.symbol, x.timeframe, now, now, -100) if client else {}
         digits = res.get('digits', 5)
         rate_infos = res.get('rateInfos', [])
-        LOGGER.debug(f'recv {self.symbol} {len(rate_infos)} ticks.')
+        logger.debug(f'recv {self.symbol} {len(rate_infos)} ticks.')
         # caching
         try:
             cache = Cache()
+            key_group = f'{x.account.mode}_{self.symbol}_{x.timeframe}'
             for ctm in rate_infos:
-                cache.set_key(f'{conf.race_mode}_{self.symbol}_{conf.period}:{ctm["ctm"]}', ctm)
-            ctm_prefix = range(((now - conf.period*60*400) // 100_000), (now // 100_000)+1)
+                cache.set_key(f'{key_group}:{ctm["ctm"]}', ctm)
+            ctm_prefix = range(((now - x.timeframe*60*400) // 100_000), (now // 100_000)+1)
             rate_infos = []
             for pre in ctm_prefix:
-                mkey = cache.client.keys(pattern=f'{conf.race_mode}_{self.symbol}_{conf.period}:{pre}*')
+                mkey = cache.client.keys(pattern=f'{key_group}:{pre}*')
                 rate_infos.extend(cache.get_keys(mkey))
         except ConnectionError as e:
-            LOGGER.error(e)
+            logger.error(e)
         # prepare candles
         if not rate_infos:
             return
-        rate_infos = [c for c in rate_infos if now - int(c['ctm'])/1000 > conf.period*60]
-        rate_infos.sort(key=lambda x: x['ctm'])
+        rate_infos = [c for c in rate_infos if now - int(c['ctm'])/1000 > x.timeframe*60]
+        rate_infos.sort(key=lambda by: by['ctm'])
         candles = DataFrame(rate_infos)
         candles['close'] = (candles['open'] + candles['close']) / 10 ** digits
         candles['high'] = (candles['open'] + candles['high']) / 10 ** digits
         candles['low'] = (candles['open'] + candles['low']) / 10 ** digits
         candles['open'] = candles['open'] / 10 ** digits
-        LOGGER.debug(f'got {self.symbol} {len(candles)} ticks.')
+        logger.debug(f'got {self.symbol} {len(candles)} ticks.')
         # evaluate
-        from signals import Fx
-        fx = Fx(algo=conf.algorithm, tech=conf.tech)
-        self.action, self.mode = fx.evaluate(candles)
+        sign = Fx(indicator=x.indicator, tech=ind_presets.get(x.ind_preset))
+        self.action, self.mode = sign.evaluate(candles)
         self.digits = digits
-        self.df = fx.candles
+        self.df = sign.candles
         self.price = self.df.iloc[-1]['close']
         self.epoch_ms = self.df.iloc[-1]['ctm']
 
 
-def run():
+def run(app):
+    logger = logging.getLogger(f'xtb.{app.name}')
+    x = app.param
+    # init chat notification
+    report = Notify(title=f'[{app.name.upper()}-{x.account.name}]')
+    # check if App's timing to be run
+    if report.ts.minute % x.timeframe > 10:
+        return False
     # Start here
-    breaker = Breaker()
-    breaker.check()
-    if not breaker.status and conf.race_mode == 'real':
-        LOGGER.debug('Breaker is OFF.')
-        return
+    logger.debug(f'Running: {app.param}')
+    # check App's breaker status
+    if not x.breaker and x.account.mode == 'real':
+        logger.debug('Breaker is OFF.')
+        return False
+    # start X connection
     client = Client()
-    client.login(conf.race_name, conf.race_pass, mode=conf.race_mode)
-    gcp = Cloud()
-    report = Notify(title=f'[{conf.race_mode}-{conf.algorithm}-{conf.period}]'.upper())
-    LOGGER.debug('Enter the Gate.')
+    client.login(x.account.name, x.account.secret, mode=x.account.mode)
+    logger.debug('Enter the Gate.')
 
     # Check if market is open
-    market_status = client.get_market_status(conf.symbols)
-    LOGGER.info(f'{report.title} Market status: {market_status}')
+    market_status = client.get_market_status(x.symbols)
+    logger.info(f'{report.title} Market status: {market_status}')
+    tx = Trade(client=client, param=app.param)
     for symbol, status in market_status.items():
         if not status:
             continue
 
         # Market open, check signal
-        r = Result(symbol)
+        r = Result(symbol, app)
         r.market_status = status
         r.get_signal(client=client)
         if not r.action:
             continue
         ts = report.setts(datetime.fromtimestamp(int(r.epoch_ms)/1000))
-        LOGGER.info(f'Signal: {symbol}, {r.action}, {r.mode.upper()}, {r.price} at {ts}')
-        LOGGER.debug(f'{symbol} - ' + r.df.tail(2).head(1).iloc[:, [0, 1, -4, -3, -2, -1]].to_string(header=False))
-        LOGGER.debug(f'{symbol} - ' + r.df.tail(1).iloc[:, [0, 1, -4, -3, -2, -1]].to_string(header=False))
+        report_ts = ts.strftime("%Y-%m-%d %H:%M:%S")
+        logger.info(f'Signal: {symbol}, {r.action}, {r.mode.upper()}, {r.price} at {report_ts}')
+        logger.debug(f'{symbol} - ' + r.df.tail(2).head(1).iloc[:, [0, 1, -4, -3, -2, -1]].to_string(header=False))
+        logger.debug(f'{symbol} - ' + r.df.tail(1).iloc[:, [0, 1, -4, -3, -2, -1]].to_string(header=False))
 
         # Check signal to open/close transaction
         if r.action in ('open', 'close'):
             if r.action in ('open',):
-                res = trigger_open_trade(client, symbol=symbol, mode=r.mode)
+                res = tx.trigger_open(symbol=symbol, mode=r.mode)
                 report.print_notify(
-                    f'>> {symbol}: Open-{r.mode.upper()} by {conf.volume} at {ts}, {res}'
-                )
+                    f'>> {symbol}: Open-{r.mode.upper()} by {x.volume} at {report_ts}, {res}')
             elif r.action in ('close',):
-                res = trigger_close_trade(client, symbol=symbol, mode=r.mode)
+                res = tx.trigger_close(symbol=symbol, mode=r.mode)
                 report.print_notify(
-                    f'>> {symbol}: Close-{r.mode.upper()} at {ts}, {res}'
-                )
+                    f'>> {symbol}: Close-{r.mode.upper()} at {report_ts}, {res}')
+            logger.info(report.lastmsg.strip())
 
-    store_trade_rec(client, conf.race_name)
+    # store tx records in cache
+    tx.store_records(x.account.name)
     client.logout()
+    # stop conn, send chat notification
+    gcp = Cloud()
     if report.texts:
         gcp.pub(f'{report.title}\n{report.texts}')
 
+    return True
+
+
+def demo():
+    # loop through each App in profile settings
+    for app in settings.profiles:
+        # get and check App's account credential
+        account: dict = accounts.get(app.param.account.name, {})
+        if account:
+            app.param.account.secret = account.get('pass', '')
+            app.param.account.mode = account.get('mode', 'demo')
+            if run(app):
+                time.sleep(10)
+
 
 if __name__ == '__main__':
-    run()
+    demo()

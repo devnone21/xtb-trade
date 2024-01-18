@@ -26,8 +26,8 @@ def _add_signal(df: DataFrame, ind_name, **kwargs):
 
 
 class Fx:
-    def __init__(self, algo: str, tech=None, candles=None):
-        self.name = algo.lower()
+    def __init__(self, indicator: str, tech=None, candles=None):
+        self.name = indicator.lower()
         self.tech = tech
         self.candles = candles
         self.orig_candles = candles

@@ -363,7 +363,7 @@ class BaseClient(object):
 
 class Transaction(object):
     def __init__(self, trans_dict):
-        self._trans_dict = trans_dict
+        self.trans_dict = trans_dict
         self.mode = {0: 'buy', 1: 'sell'}[trans_dict['cmd']]
         self.order_id = trans_dict['order']
         self.symbol = trans_dict['symbol']
@@ -460,17 +460,17 @@ class Client(BaseClient):
 
     def open_trade(self, mode, symbol, volume, **kwargs):
         """open trade transaction"""
+        mode_enum: MODES = MODES.BUY
         if mode in [MODES.BUY.value, MODES.SELL.value]:
-            mode = [x for x in MODES if x.value == mode][0]
+            mode_enum = [x for x in MODES if x.value == mode][0]
         elif mode in ['buy', 'sell']:
             modes = {'buy': MODES.BUY, 'sell': MODES.SELL}
-            mode = modes[mode]
+            mode_enum = modes[mode]
         else:
             raise ValueError("mode can be buy or sell")
-        mode_name = mode.name
-        mode_value = mode.value
-        self.LOGGER.info(f"opening trade of {symbol} of {volume} with "
-                          f"{mode_name}")
+        mode_name = mode_enum.name
+        mode_value = mode_enum.value
+        self.LOGGER.info(f"opening trade of {symbol} of {volume} with {mode_name}")
         conversion_mode = {MODES.BUY.value: 'ask', MODES.SELL.value: 'bid'}
         res_symbol = self.get_symbol(symbol)
         price = res_symbol[conversion_mode[mode_value]]
@@ -552,7 +552,7 @@ class Client(BaseClient):
         response = self.get_trading_hours(list_of_symbols)
         status = {}
         for res in response:
-            today_market = {'open':mkt for mkt in res['trading'] if mkt['day'] == gmt_date.isoweekday()}
+            today_market = {'open': mkt for mkt in res['trading'] if mkt['day'] == gmt_date.isoweekday()}
             if not today_market:
                 status[res['symbol']] = False
                 continue
