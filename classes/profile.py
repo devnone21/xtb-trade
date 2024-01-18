@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Union
 
 
 @dataclass
@@ -16,13 +17,13 @@ class Account:
 
 @dataclass
 class Param:
-    account: str | dict | Account
+    account: Union[str, dict, Account]
     breaker: bool
     symbols: list[str]
     timeframe: int
     volume: float
-    rate_tp: float | int
-    rate_sl: float | int
+    rate_tp: Union[float, int]
+    rate_sl: Union[float, int]
     indicator: str
     ind_preset: str
 
@@ -33,7 +34,7 @@ class Param:
 @dataclass
 class Profile:
     name: str
-    param: dict | Param
+    param: Union[dict, Param]
 
     def __post_init__(self):
         self.param = Param(**self.param)
@@ -43,7 +44,7 @@ class Profile:
 class Settings:
     rayId: str
     _comment: str
-    profiles: list[dict] | list[Profile]
+    profiles: Union[list[dict], list[Profile]]
 
     def __post_init__(self):
         self.profiles = [Profile(**p) for p in self.profiles]

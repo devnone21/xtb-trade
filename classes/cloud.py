@@ -1,12 +1,13 @@
 import os
 import json
 from google.cloud import pubsub_v1, storage, exceptions
+from typing import Union
 
 
 class Cloud:
     """Class of Cloud client. Currently only GCP."""
     def __init__(self):
-        self.client: tuple[None] | pubsub_v1 | storage = None
+        self.client: Union[tuple[None], pubsub_v1, storage] = None
 
     def pub(self, message: str) -> str:
         self.client = pubsub_v1.PublisherClient()
