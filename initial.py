@@ -66,3 +66,6 @@ ind_presets = {
         }
   ],
 }
+
+if __name__ == '__main__':
+    print(settings.profiles)

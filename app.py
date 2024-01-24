@@ -73,7 +73,7 @@ def run(app):
     # Start here
     logger.debug(f'Running: {app.param}')
     # check App's breaker status
-    if not x.breaker and x.account.mode == 'real':
+    if not x.breaker:
         logger.debug('Breaker is OFF.')
         return False
     # start X connection
