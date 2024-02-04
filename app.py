@@ -1,6 +1,6 @@
 import time
 from initial import *
-from classes import Cache, Fx, Trade, Notify, Cloud
+from classes import Cache, Fx, Trade, Notify, Cloud, Profile
 from XTBApi.api import Client
 from redis.exceptions import ConnectionError
 from datetime import datetime
@@ -9,8 +9,8 @@ from pandas import DataFrame
 
 class Result:
     def __init__(self, symbol, app):
-        self.symbol = symbol
-        self.app = app
+        self.symbol: str = symbol
+        self.app: Profile = app
         self.market_status = False
         self.df = DataFrame()
         self.digits = 5
@@ -34,7 +34,7 @@ class Result:
             cache = Cache()
             key_group = f'{x.account.mode}_{self.symbol}_{x.timeframe}'
             for ctm in rate_infos:
-                cache.set_key(f'{key_group}:{ctm["ctm"]}', ctm)
+                cache.set_key(f'{key_group}:{ctm["ctm"]}', ctm, ttl_s=x.timeframe*172_800)
             ctm_prefix = range(((now - x.timeframe*60*400) // 100_000), (now // 100_000)+1)
             rate_infos = []
             for pre in ctm_prefix:
