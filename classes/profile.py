@@ -48,3 +48,4 @@ class Settings:
 
     def __post_init__(self):
         self.profiles = [Profile(**p) for p in self.profiles]
+        self.profiles.sort(key=lambda x: x.param.account.name, reverse=True)
