@@ -13,7 +13,8 @@ class Cache:
             decode_responses=True,
         )
 
-    def set_key(self, key: str, value: dict):
+    def set_key(self, key: str, value: dict, **kwargs):
+        self.ttl_s = kwargs.pop('ttl_s', self.ttl_s)
         self.client.set(key, json.dumps(value), ex=self.ttl_s)
 
     def get_key(self, key: str) -> dict:
