@@ -29,3 +29,4 @@ logs/
 *.ipynb
 *.csv
 *.bak
+*.ftr

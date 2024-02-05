@@ -34,9 +34,9 @@ class Result:
         except ConnectionError as e:
             logging.error(e)
         # prepare candles
-        logging.debug(f'GetCD: {len(rate_infos)} ticks')
+        print(f'GetCD: {len(rate_infos)} ticks')
         if not rate_infos:
-            return
+            return DataFrame()
         rate_infos.sort(key=lambda by: by['ctm'])
         candles = DataFrame(rate_infos)
         candles['close'] = (candles['open'] + candles['close']) / 10 ** self.digits
@@ -49,14 +49,18 @@ class Result:
     def gen_signal(self):
         x = self.app.param
         candles = self.get_candles()
+        if not len(candles):
+            return False
         # evaluate
         fx = BtFx(indicator=x.indicator, tech=ind_presets.get(x.ind_preset))
         fx.evaluate(candles)
-        logging.debug(f'GenFX: shape is {fx.df.shape}')
+        print(f'GenFX: shape is {fx.df.shape}')
         self.df = fx.df
+        return True
 
     def sim_trades(self):
-        for row in self.df:
+        self.df['order_id'] = 0
+        for i, row in self.df.iterrows():
             if row['fx_type'] == FXTYPE.OPEN.value:
                 tx = self.orders.open_trade(
                     mode=int(row['fx_mode']),
@@ -64,39 +68,35 @@ class Result:
                     open_price=row['close']
                 )
                 self.orders.records.append(tx)
-                row['order_id'] = tx.id
+                self.df.at[i, 'order_id'] = tx.id
             if row['fx_type'] == FXTYPE.CLOSE.value:
                 self.orders.close_trade(
                     mode=int(row['fx_mode']),
                     close_dt=datetime.fromtimestamp(int(row['ctm']) / 1000),
                     close_price=row['close']
                 )
-        logging.debug(f'SimOrders: {len(self.orders.records)}')
 
     def merge_orders_df(self):
         """extend df with orders"""
         orders_df = DataFrame([tx.__dict__ for tx in self.orders.records])
         selected_cols = ["id", "mode", "volume", "close_dt", "close_price", "pnl"]
-        # self.df.merge(orders_df[selected_cols], how='left', left_on='order_id', right_on='id')
+        df = self.df.merge(orders_df[selected_cols], how='left', left_on='order_id', right_on='id')
+        # store df in feather
         orders_df[selected_cols].to_feather(f'orders_{self.app.name}_{self.symbol}.ftr')
-
-    def store_final_df(self):
-        """store df in feather"""
-        self.df.to_feather(f'df_{self.app.name}_{self.symbol}.ftr')
+        df.to_feather(f'df_{self.app.name}_{self.symbol}.ftr')
 
 
 def run(app: Profile):
     x = app.param
     for symbol in x.symbols:
         r = Result(symbol, app)
-        r.gen_signal()
-        r.sim_trades()
-        r.merge_orders_df()
-        r.store_final_df()
+        if r.gen_signal():
+            r.sim_trades()
+            r.merge_orders_df()
 
 
 if __name__ == '__main__':
     # loop through each App in profile settings
     for profile in settings.profiles:
-        logging.debug(f'Running: {profile}')
+        print(f'Running: {profile}')
         run(profile)
