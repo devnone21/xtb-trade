@@ -7,7 +7,7 @@ from datetime import datetime
 
 @dataclass
 class Trade:
-    id: int = field(default_factory=count().__next__, init=False)
+    order_id: int = field(default_factory=count(start=1).__next__, init=False)
     open_dt: datetime
     symbol: str
     mode: int

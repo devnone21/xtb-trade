@@ -68,7 +68,7 @@ class Result:
                     open_price=row['close']
                 )
                 self.orders.records.append(tx)
-                self.df.at[i, 'order_id'] = tx.id
+                self.df.at[i, 'order_id'] = tx.order_id
             if row['fx_type'] == FXTYPE.CLOSE.value:
                 self.orders.close_trade(
                     mode=int(row['fx_mode']),
@@ -79,11 +79,13 @@ class Result:
     def merge_orders_df(self):
         """extend df with orders"""
         orders_df = DataFrame([tx.__dict__ for tx in self.orders.records])
-        selected_cols = ["id", "mode", "volume", "close_dt", "close_price", "pnl"]
-        df = self.df.merge(orders_df[selected_cols], how='left', left_on='order_id', right_on='id')
-        # store df in feather
-        orders_df[selected_cols].to_feather(f'orders_{self.app.name}_{self.symbol}.ftr')
-        df.to_feather(f'df_{self.app.name}_{self.symbol}.ftr')
+        selected_cols = ["order_id", "mode", "volume", "close_dt", "close_price", "pnl"]
+        df = self.df.merge(orders_df[selected_cols], how='left', on='order_id', indicator=True)
+        # store df in csv/feather
+        # orders_df[selected_cols].to_feather(f'orders_{self.app.name}_{self.symbol}.ftr')
+        # df.to_feather(f'df_{self.app.name}_{self.symbol}.ftr')
+        orders_df[selected_cols].to_csv(f'orders_{self.app.name}_{self.symbol}.csv', index=False)
+        df.to_csv(f'df_{self.app.name}_{self.symbol}.csv', index=False)
 
 
 def run(app: Profile):
