@@ -1,7 +1,7 @@
 import os
 import json
-from enum import Enum
 from classes import Settings
+from enum import Enum
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -42,4 +42,5 @@ symbol_digits = {
 
 if __name__ == '__main__':
     print(settings.profiles)
+    # print("In module products __package__, __name__ ==", __package__, __name__)
     print(os.getenv("REDIS_HOST"))
