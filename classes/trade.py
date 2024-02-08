@@ -8,7 +8,7 @@ LOGGER = logging.getLogger(__name__)
 
 class Trade:
     """Xtb trade class."""
-    def __init__(self, client, param):
+    def __init__(self, client, param) -> None:
         self.client: Client = client
         self.param: Param = param
 

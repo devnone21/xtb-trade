@@ -8,7 +8,7 @@ from pandas import DataFrame
 
 
 class Result:
-    def __init__(self, symbol, app):
+    def __init__(self, symbol, app) -> None:
         self.symbol: str = symbol
         self.app: Profile = app
         self.market_status = False
@@ -124,7 +124,7 @@ def run(app):
     return True
 
 
-def demo():
+def demo() -> None:
     # loop through each App in profile settings
     for app in settings.profiles:
         # get and check App's account credential

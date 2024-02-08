@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from itertools import count
-from typing import Union
+from typing import Union, List
 from classes import Profile
 from datetime import datetime
 
@@ -23,12 +23,12 @@ class Trade:
 class Orders:
     symbol: str
     volume: Union[float, int]
-    records: list[Trade] = field(default_factory=list)
+    records: List[Trade] = field(default_factory=list)
 
-    def open_trade(self, mode: int, open_dt: datetime, open_price: float | int) -> Trade:
+    def open_trade(self, mode: int, open_dt: datetime, open_price: Union[float, int]) -> Trade:
         return Trade(open_dt, self.symbol, mode, self.volume, open_price)
 
-    def close_trade(self, mode: int, close_dt: datetime, close_price: float | int):
+    def close_trade(self, mode: int, close_dt: datetime, close_price: Union[float, int]):
         orders = [tx for tx in self.records if tx.mode == mode and not tx.closed]
         for tx in orders:
             tx.closed = True
@@ -41,4 +41,4 @@ class Orders:
 @dataclass
 class Portfolio:
     profile: Profile
-    order_group: list[Orders] = field(default_factory=list)
+    order_group: List[Orders] = field(default_factory=list)

@@ -5,7 +5,7 @@ from redis.client import Redis
 
 class Cache:
     """Extended class of Redis cache. Accept dict and store as string."""
-    def __init__(self):
+    def __init__(self) -> None:
         self.ttl_s: int = 604_800
         self.client: Redis = Redis(
             host=os.getenv("REDIS_HOST"),

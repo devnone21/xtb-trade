@@ -5,13 +5,7 @@ from classes import Cache, Profile
 from redis.exceptions import ConnectionError
 from datetime import datetime
 from pandas import DataFrame
-import logging
-logging.basicConfig(
-     filename='bt.log',
-     level=logging.DEBUG,
-     format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
-     datefmt='%Y-%m-%d %H:%M:%S'
- )
+logger = logging.getLogger(f'xtb.backtest')
 
 
 class Result:
@@ -34,7 +28,7 @@ class Result:
         except ConnectionError as e:
             logging.error(e)
         # prepare candles
-        print(f'GetCD: {len(rate_infos)} ticks')
+        logger.debug(f'GetCD: {len(rate_infos)} ticks')
         if not rate_infos:
             return DataFrame()
         rate_infos.sort(key=lambda by: by['ctm'])
@@ -54,7 +48,7 @@ class Result:
         # evaluate
         fx = BtFx(indicator=x.indicator, tech=ind_presets.get(x.ind_preset))
         fx.evaluate(candles)
-        print(f'GenFX: shape is {fx.df.shape}')
+        logger.debug(f'GenFX: shape is {fx.df.shape}')
         self.df = fx.df
         return True
 
@@ -100,5 +94,5 @@ def run(app: Profile):
 if __name__ == '__main__':
     # loop through each App in profile settings
     for profile in settings.profiles:
-        print(f'Running: {profile}')
+        logger.debug(f'Running: {profile}')
         run(profile)

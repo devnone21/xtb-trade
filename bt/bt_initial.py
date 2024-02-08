@@ -1,5 +1,6 @@
 import os
 import json
+import logging.config
 from classes import Settings
 from enum import Enum
 from dotenv import load_dotenv
@@ -10,6 +11,42 @@ class MODES(Enum):
     BUY = 0
     SELL = 1
 
+
+_logging_json = {
+  "version": 1,
+  "disable_existing_loggers": False,
+  "formatters": {
+    "default": {
+      "format": "%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+      "datefmt": "%Y-%m-%d %H:%M:%S"
+    }
+  },
+  "handlers": {
+    "console": {
+      "class": "logging.StreamHandler",
+      "formatter": "default"
+    },
+    "rotating": {
+      "class": "logging.handlers.TimedRotatingFileHandler",
+      "formatter": "default",
+      "filename": os.getenv("LOG_PATH", default="bt.log"),
+      "when": "midnight",
+      "backupCount": 3
+    }
+  },
+  "loggers": {
+    "": {
+      "handlers": ["console"],
+      "level": "CRITICAL",
+      "propagate": True
+    },
+    "xtb": {
+      "handlers": ["rotating"],
+      "level": "DEBUG"
+    }
+  }
+}
+logging.config.dictConfig(_logging_json)
 
 settings = Settings(**json.load(open('settings.json')))
 ind_presets = {
@@ -42,5 +79,4 @@ symbol_digits = {
 
 if __name__ == '__main__':
     print(settings.profiles)
-    # print("In module products __package__, __name__ ==", __package__, __name__)
     print(os.getenv("REDIS_HOST"))

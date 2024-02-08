@@ -6,7 +6,7 @@ from typing import Union
 
 class Cloud:
     """Class of Cloud client. Currently only GCP."""
-    def __init__(self):
+    def __init__(self) -> None:
         self.client: Union[tuple[None], pubsub_v1, storage] = None
 
     def pub(self, message: str) -> str:

@@ -1,5 +1,6 @@
-from dataclasses import dataclass
-from typing import Union
+from pydantic import BaseModel, field_validator
+from pydantic.dataclasses import dataclass
+from typing import Union, List
 
 
 @dataclass
@@ -17,35 +18,42 @@ class Account:
 
 @dataclass
 class Param:
-    account: Union[str, dict, Account]
-    breaker: bool
-    symbols: list[str]
+    account: Account
+    symbols: List[str]
     timeframe: int
-    volume: float
-    rate_tp: Union[float, int]
-    rate_sl: Union[float, int]
-    indicator: str
-    ind_preset: str
+    breaker: bool = False
+    volume: float = 0.01
+    rate_tp: Union[float, int] = 0
+    rate_sl: Union[float, int] = 0
+    indicator: str = 'rsi'
+    ind_preset: str = ''
 
-    def __post_init__(self):
-        self.account = Account(self.account)
+    @field_validator('account', mode='before')
+    def account_post_init(cls, v):
+        if isinstance(v, str):
+            v = Account(v)
+        return v
 
 
-@dataclass
-class Profile:
+class Profile(BaseModel):
     name: str
-    param: Union[dict, Param]
+    param: Param
 
-    def __post_init__(self):
-        self.param = Param(**self.param)
+    @field_validator('param', mode='before')
+    def param_post_init(cls, v):
+        if isinstance(v, dict):
+            v = Param(**v)
+        return v
 
 
-@dataclass
-class Settings:
+class Settings(BaseModel):
     rayId: str
     _comment: str
-    profiles: Union[list[dict], list[Profile]]
+    profiles: List[Profile]
 
-    def __post_init__(self):
-        self.profiles = [Profile(**p) for p in self.profiles]
-        self.profiles.sort(key=lambda x: x.param.account.name, reverse=True)
+    @field_validator('profiles', mode='before')
+    def profiles_post_init(cls, v):
+        if isinstance(v, list):
+            v = [Profile(**p) for p in v]
+            v.sort(key=lambda x: x.param.account.name, reverse=True)
+        return v
