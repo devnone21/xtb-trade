@@ -22,7 +22,7 @@ _logging_json = {
     "rotating": {
       "class": "logging.handlers.TimedRotatingFileHandler",
       "formatter": "default",
-      "filename": os.getenv("LOG_PATH", default="logs/app.log"),
+      "filename": os.getenv("LOG_PATH", default="app.log"),
       "when": "midnight",
       "backupCount": 3
     }
