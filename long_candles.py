@@ -56,7 +56,7 @@ class Result:
         self.market_status = False
 
     def get_candles(self, client=None):
-        logger = logging.getLogger(f'xtb.long_candles')
+        logger = logging.getLogger('xtb.long_candles')
         logger.setLevel(logging.DEBUG)
         x = self.app.param
         # get charts
@@ -75,7 +75,7 @@ class Result:
 
 
 def run(app: Profile):
-    logger = logging.getLogger(f'xtb.long_candles')
+    logger = logging.getLogger('xtb.long_candles')
     x = app.param
     # Start here
     logger.debug(f'Running: {app.param}')

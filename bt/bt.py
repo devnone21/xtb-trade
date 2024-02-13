@@ -1,11 +1,12 @@
-from bt_initial import *
+from bt_initial import settings, symbol_digits, ind_presets
 from bt_fx import BtFx, FXTYPE
 from bt_trades import Orders
 from classes import Cache, Profile
 from redis.exceptions import ConnectionError
 from datetime import datetime
 from pandas import DataFrame
-logger = logging.getLogger(f'xtb.backtest')
+import logging
+logger = logging.getLogger('xtb.backtest')
 
 
 class Result:

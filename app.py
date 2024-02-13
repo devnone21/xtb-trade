@@ -1,10 +1,12 @@
 import time
-from initial import *
+from initial import settings, accounts, ind_presets
 from classes import Cache, Fx, Trade, Notify, Cloud, Profile
 from XTBApi.api import Client
+from XTBApi.exceptions import CommandFailed
 from redis.exceptions import ConnectionError
 from datetime import datetime
 from pandas import DataFrame
+import logging
 
 
 class Result:
@@ -78,7 +80,11 @@ def run(app):
         return False
     # start X connection
     client = Client()
-    client.login(x.account.name, x.account.secret, mode=x.account.mode)
+    try:
+        client.login(x.account.name, x.account.secret, mode=x.account.mode)
+    except CommandFailed:
+        logger.debug('Gate is closed.')
+        return False
     logger.debug('Enter the Gate.')
 
     # Check if market is open
