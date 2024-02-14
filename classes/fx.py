@@ -69,6 +69,10 @@ class Fx:
             return 'stay', 'na'
         last_rsi = self.candles[[col_a['name'], col_b['name']]].iloc[-2:].values.tolist()  # [[0, 0], [1, 0]]
         bit_array = sum(last_rsi, start=[])                                                 # [0, 0, 1, 0]
+        if "".join((str(i) for i in bit_array)) == '0110':
+            return 'close', 'buy'
+        if "".join((str(i) for i in bit_array)) == '1001':
+            return 'close', 'sell'
         if sum(bit_array) == 1:
             bit_position = sum([n * (i + 1) for i, n in enumerate(bit_array)])
             if bit_position == 1: return 'open', 'sell'

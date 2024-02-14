@@ -110,7 +110,6 @@ def demo() -> None:
             app.param.account.mode = account.get('mode', 'demo')
             if run(app):
                 time.sleep(10)
-                app.param
 
 
 if __name__ == '__main__':
