@@ -104,8 +104,8 @@ def run(app):
         ts = report.setts(datetime.fromtimestamp(int(r.epoch_ms)/1000))
         report_ts = ts.strftime("%Y-%m-%d %H:%M:%S")
         logger.info(f'Signal: {symbol}, {r.action}, {r.mode.upper()}, {r.price} at {report_ts}')
-        logger.debug(f'{symbol} - ' + r.df.tail(2).head(1).iloc[:, [0, 1, -4, -3, -2, -1]].to_string(header=False))
-        logger.debug(f'{symbol} - ' + r.df.tail(1).iloc[:, [0, 1, -4, -3, -2, -1]].to_string(header=False))
+        logger.debug(f'{symbol} - ' + r.df.tail(2).head(1).iloc[:, [0, 1, 3, -3, -2, -1]].to_string(header=False))
+        logger.debug(f'{symbol} - ' + r.df.tail(1).iloc[:, [0, 1, 3, -3, -2, -1]].to_string(header=False))
 
         # Check signal to open/close transaction
         if r.action in ('open', 'close'):

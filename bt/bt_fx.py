@@ -61,6 +61,10 @@ class BtFx:
         def rsi_x(row):
             bits = row.values.tolist()
             if sum(bits) != 1:
+                if "".join((str(i) for i in bits)) == '0110':
+                    return {'fx_type': FXTYPE.CLOSE.value, 'fx_mode': FXMODE.BUY.value}
+                if "".join((str(i) for i in bits)) == '1001':
+                    return {'fx_type': FXTYPE.CLOSE.value, 'fx_mode': FXMODE.SELL.value}
                 return {'fx_type': FXTYPE.STAY.value, 'fx_mode': FXMODE.NA.value}
             fx_type = FXTYPE.OPEN.value if bits[0] or bits[1] else FXTYPE.CLOSE.value
             fx_mode = FXMODE.BUY.value if bits[1] or bits[2] else FXMODE.SELL.value

@@ -8,4 +8,5 @@ from classes.kv import KV
 from classes.fx import Fx
 from classes.trade import Trade
 from classes.profile import Settings, Account, Profile
-__all__ = [Notify, Cache, Cloud, KV, Fx, Trade, Settings, Account, Profile]
+from classes.mongo import Mongo
+__all__ = [Notify, Cache, Cloud, KV, Fx, Trade, Settings, Account, Profile, Mongo]

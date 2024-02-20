@@ -1,10 +1,8 @@
 from bt_initial import settings, symbol_digits, ind_presets
 from bt_fx import BtFx, FXTYPE
 from bt_trades import Orders
-from classes import Cache, Profile
-from redis.exceptions import ConnectionError
-from datetime import datetime
-from pandas import DataFrame
+from classes import Mongo, Profile
+from pandas import DataFrame, to_datetime
 import logging
 logger = logging.getLogger('xtb.backtest')
 
@@ -15,19 +13,18 @@ class Result:
         self.app = app
         self.df = DataFrame()
         self.candles = DataFrame()
-        self.digits = symbol_digits.get(symbol, 2)
-        self.orders = Orders(symbol, volume=app.param.volume)
+        digits = symbol_digits.get(symbol, 2)
+        self.digits = digits
+        self.orders = Orders(symbol, digits, volume=app.param.volume)
 
     def get_candles(self):
         x = self.app.param
         rate_infos = []
-        try:
-            cache = Cache()
-            key_group = f'real_{self.symbol}_{x.timeframe}'
-            mkey = cache.client.keys(pattern=f'{key_group}:*')
-            rate_infos.extend(cache.get_keys(mkey))
-        except ConnectionError as e:
-            logging.error(e)
+        # Start DB connection
+        db = Mongo(db='xtb')
+        key_group = f'real_{self.symbol}_{x.timeframe}'
+        rate_infos.extend(db.find_all(key_group))
+        db.client.close()
         # prepare candles
         logger.debug(f'GetCD: {len(rate_infos)} ticks')
         if not rate_infos:
@@ -59,7 +56,7 @@ class Result:
             if row['fx_type'] == FXTYPE.OPEN.value:
                 tx = self.orders.open_trade(
                     mode=int(row['fx_mode']),
-                    open_dt=datetime.fromtimestamp(int(row['ctm']) / 1000),
+                    open_ctm=int(row['ctm']),
                     open_price=row['close']
                 )
                 self.orders.records.append(tx)
@@ -67,15 +64,17 @@ class Result:
             if row['fx_type'] == FXTYPE.CLOSE.value:
                 self.orders.close_trade(
                     mode=int(row['fx_mode']),
-                    close_dt=datetime.fromtimestamp(int(row['ctm']) / 1000),
+                    close_ctm=int(row['ctm']),
                     close_price=row['close']
                 )
 
     def merge_orders_df(self):
         """extend df with orders"""
         orders_df = DataFrame([tx.__dict__ for tx in self.orders.records])
-        selected_cols = ["order_id", "mode", "volume", "close_dt", "close_price", "pnl"]
+        selected_cols = ["order_id", "mode", "volume", "open_ctm", "open_price", "close_ctm", "close_price", "pnl"]
         df = self.df.merge(orders_df[selected_cols], how='left', on='order_id', indicator=True)
+        df['open_utc'] = to_datetime(df['open_ctm'] / 1000, unit='s', utc=True)
+        df['close_utc'] = to_datetime(df['close_ctm'] / 1000, unit='s', utc=True)
         # store df in csv/feather
         # orders_df[selected_cols].to_feather(f'orders_{self.app.name}_{self.symbol}.ftr')
         # df.to_feather(f'df_{self.app.name}_{self.symbol}.ftr')

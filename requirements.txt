@@ -1,6 +1,7 @@
 pandas==2.0.0
 pandas-ta==0.3.14b0
 python-dotenv==1.0.0
+pymongo[srv]==4.6.0
 redis==5.0.1
 websockets==12.0
 google-cloud-pubsub

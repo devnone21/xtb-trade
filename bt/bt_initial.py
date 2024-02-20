@@ -79,4 +79,4 @@ symbol_digits = {
 
 if __name__ == '__main__':
     print(settings.profiles)
-    print(os.getenv("REDIS_HOST"))
+    print(os.getenv("MONGODB_HOST"))
