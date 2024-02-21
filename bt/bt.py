@@ -2,7 +2,7 @@ from bt_initial import settings, symbol_digits, ind_presets
 from bt_fx import BtFx, FXTYPE
 from bt_trades import Orders
 from classes import Mongo, Profile
-from pandas import DataFrame, to_datetime
+from pandas import DataFrame
 import logging
 logger = logging.getLogger('xtb.backtest')
 
@@ -67,19 +67,20 @@ class Result:
                     close_ctm=int(row['ctm']),
                     close_price=row['close']
                 )
+        self.orders.eval_performance()
 
     def merge_orders_df(self):
         """extend df with orders"""
-        orders_df = DataFrame([tx.__dict__ for tx in self.orders.records])
-        selected_cols = ["order_id", "mode", "volume", "open_ctm", "open_price", "close_ctm", "close_price", "pnl"]
-        df = self.df.merge(orders_df[selected_cols], how='left', on='order_id', indicator=True)
-        df['open_utc'] = to_datetime(df['open_ctm'] / 1000, unit='s', utc=True)
-        df['close_utc'] = to_datetime(df['close_ctm'] / 1000, unit='s', utc=True)
-        # store df in csv/feather
-        # orders_df[selected_cols].to_feather(f'orders_{self.app.name}_{self.symbol}.ftr')
-        # df.to_feather(f'df_{self.app.name}_{self.symbol}.ftr')
-        orders_df[selected_cols].to_csv(f'orders_{self.app.name}_{self.symbol}.csv', index=False)
-        df.to_csv(f'df_{self.app.name}_{self.symbol}.csv', index=False)
+        df = self.df.merge(self.orders.df, how='left', on='order_id', indicator=True)
+
+        # export df in csv/feather
+        df.to_csv(f'df_{self.symbol}_{self.app.param.timeframe}.csv', index=False)
+
+        selected_cols = [
+            "order_id", "cmd", "volume", "open_price", "close_price", "profit", "cum_profit",
+            "open_ctm", "close_ctm", "open_time", "close_time",
+        ]
+        self.orders.df[selected_cols].to_csv(f'orders_{self.symbol}_{self.app.param.timeframe}.csv', index=False)
 
 
 def run(app: Profile):
@@ -89,6 +90,7 @@ def run(app: Profile):
         if r.gen_signal():
             r.sim_trades()
             r.merge_orders_df()
+            # print(r.orders.performance)
 
 
 if __name__ == '__main__':
