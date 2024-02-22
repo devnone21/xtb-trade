@@ -72,7 +72,7 @@ ind_presets = {
 symbol_digits = {
     "GOLD": 2,
     "GOLD.FUT": 2,
-    "BITCOIN": 0,
+    "BITCOIN": 2,
     "USDJPY": 3,
     "OIL.WTI": 2,
     "EURUSD": 5,

@@ -57,7 +57,7 @@ class Orders:
             "total_loss": df[df['profit'] < 0]['profit'].sum(),
             "max_dd": df['cum_profit'].min(),
             "max_runup": df['cum_profit'].max(),
-            "timespan_day": timespan_day,
+            "timespan_day": int(timespan_day),
             "avg_open_per_day": df.shape[0] / timespan_day,
         }
         df['open_utc'] = to_datetime(df['open_ctm'] / 1000, unit='s', utc=True)

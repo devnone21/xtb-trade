@@ -1,4 +1,3 @@
-# import pandas as pd
 from pandas import DataFrame, concat
 from pandas_ta.utils import signals as ta_signals
 from enum import Enum

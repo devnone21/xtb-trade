@@ -85,12 +85,15 @@ class Result:
 
 def run(app: Profile):
     x = app.param
+    perf = []
     for symbol in x.symbols:
         r = Result(symbol, app)
         if r.gen_signal():
             r.sim_trades()
-            r.merge_orders_df()
-            # print(r.orders.performance)
+            # r.merge_orders_df()
+        perf.append(r.orders.performance)
+    DataFrame(perf, index=[f'{s}_{x.timeframe}' for s in x.symbols])\
+        .to_csv(f'perf_{app.name}.csv')
 
 
 if __name__ == '__main__':
