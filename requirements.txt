@@ -10,3 +10,5 @@ google
 requests
 pydantic
 pytz
+scikit-learn
+seaborn
