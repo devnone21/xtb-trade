@@ -42,9 +42,6 @@ _logging_json = {
 logging.config.dictConfig(_logging_json)
 
 accounts: dict = json.load(open('account.json'))
-# settings = Settings(**json.load(open('settings.json')))
-_kv = KV()
-settings = Settings(**_kv.query())
 
 ind_presets = {
   "TA_RSI_L14_XA70_XB30": [
@@ -66,6 +63,13 @@ ind_presets = {
         }
   ],
 }
+
+# Uncomment if KV settings is used
+_kv = KV()
+settings = Settings(**_kv.query())
+
+# Uncomment if local settings is used
+# settings = Settings(**json.load(open('settings.json')))
 
 if __name__ == '__main__':
     print(settings.profiles)

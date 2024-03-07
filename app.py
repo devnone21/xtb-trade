@@ -1,6 +1,6 @@
 import time
 from initial import settings, accounts, ind_presets
-from classes import Cache, Fx, Trade, Notify, Cloud, Profile
+from classes import Cache, Fx, Trade, Notify, Cloud, Profile, FXTYPE, FXMODE
 from XTBApi.api import Client
 from XTBApi.exceptions import CommandFailed
 from redis.exceptions import ConnectionError
@@ -10,24 +10,26 @@ import logging
 
 
 class Result:
-    def __init__(self, symbol, app) -> None:
-        self.symbol: str = symbol
-        self.app: Profile = app
+    def __init__(self, symbol: str, app: Profile, client: Client) -> None:
+        self.symbol = symbol
+        self.app = app
+        self.client = client
         self.market_status = False
         self.df = DataFrame()
+        self.candles = DataFrame()
         self.digits = 5
         self.epoch_ms = 0
         self.price = 0.0
         self.action = ''
         self.mode = ''
 
-    def get_signal(self, client=None):
+    def get_candles(self):
         logger = logging.getLogger(f'xtb.{self.app.name}')
         logger.setLevel(logging.DEBUG)
         x = self.app.param
         # get charts
         now = int(datetime.now().timestamp())
-        res = client.get_chart_range_request(self.symbol, x.timeframe, now, now, -100) if client else {}
+        res = self.client.get_chart_range_request(self.symbol, x.timeframe, now, now, -100) if self.client else {}
         digits = res.get('digits', 5)
         rate_infos = res.get('rateInfos', [])
         logger.debug(f'recv {self.symbol} {len(rate_infos)} ticks.')
@@ -46,7 +48,7 @@ class Result:
             logger.error(e)
         # prepare candles
         if not rate_infos:
-            return
+            return DataFrame()
         rate_infos = [c for c in rate_infos if now - int(c['ctm'])/1000 > x.timeframe*60]
         rate_infos.sort(key=lambda by: by['ctm'])
         candles = DataFrame(rate_infos)
@@ -55,13 +57,24 @@ class Result:
         candles['low'] = (candles['open'] + candles['low']) / 10 ** digits
         candles['open'] = candles['open'] / 10 ** digits
         logger.debug(f'got {self.symbol} {len(candles)} ticks.')
-        # evaluate
-        sign = Fx(indicator=x.indicator, tech=ind_presets.get(x.ind_preset))
-        self.action, self.mode = sign.evaluate(candles)
+        self.candles = candles
         self.digits = digits
-        self.df = sign.candles
+        return candles
+
+    def gen_signal(self):
+        x = self.app.param
+        candles = self.get_candles()
+        if not len(candles):
+            return False
+        # evaluate
+        fx = Fx(indicator=x.indicator, tech=ind_presets.get(x.ind_preset))
+        fx.evaluate(candles)
+        self.df = fx.df
         self.price = self.df.iloc[-1]['close']
         self.epoch_ms = self.df.iloc[-1]['ctm']
+        self.action = FXTYPE(self.df.iloc[-1]['fx_type']).name.lower()
+        self.mode = FXMODE(self.df.iloc[-1]['fx_mode']).name.lower()
+        return True
 
 
 def run(app):
@@ -96,27 +109,28 @@ def run(app):
             continue
 
         # Market open, check signal
-        r = Result(symbol, app)
+        r = Result(symbol, app, client=client)
         r.market_status = status
-        r.get_signal(client=client)
+        r.gen_signal()
         if not r.action:
             continue
         ts = report.setts(datetime.fromtimestamp(int(r.epoch_ms)/1000))
         report_ts = ts.strftime("%Y-%m-%d %H:%M:%S")
         logger.info(f'Signal: {symbol}, {r.action}, {r.mode.upper()}, {r.price} at {report_ts}')
-        logger.debug(f'{symbol} - ' + r.df.tail(2).head(1).iloc[:, [0, 1, 3, -3, -2, -1]].to_string(header=False))
-        logger.debug(f'{symbol} - ' + r.df.tail(1).iloc[:, [0, 1, 3, -3, -2, -1]].to_string(header=False))
+        debug_col_idx = [0, 1, 3, -7, -6, -5, -4, -3, -2, -1]
+        logger.debug(f'{symbol} - ' + r.df.tail(2).head(1).iloc[:, debug_col_idx].to_string(header=False))
+        logger.debug(f'{symbol} - ' + r.df.tail(1).iloc[:, debug_col_idx].to_string(header=False))
 
         # Check signal to open/close transaction
-        if r.action in ('open', 'close'):
-            if r.action in ('open',):
-                res = tx.trigger_open(symbol=symbol, mode=r.mode)
-                report.print_notify(
-                    f'>> {symbol}: Open-{r.mode.upper()} by {x.volume} at {report_ts}, {res}')
-            elif r.action in ('close',):
-                res = tx.trigger_close(symbol=symbol, mode=r.mode)
-                report.print_notify(
-                    f'>> {symbol}: Close-{r.mode.upper()} at {report_ts}, {res}')
+        if r.action in ('open',):
+            res = tx.trigger_open(symbol=symbol, mode=r.mode)
+            report.print_notify(
+                f'>> {symbol}: Open-{r.mode.upper()} by {x.volume} at {report_ts}, {res}')
+            logger.info(report.lastmsg.strip())
+        elif r.action in ('close',):
+            res = tx.trigger_close(symbol=symbol, mode=r.mode)
+            report.print_notify(
+                f'>> {symbol}: Close-{r.mode.upper()} at {report_ts}, {res}')
             logger.info(report.lastmsg.strip())
 
     # store tx records in cache

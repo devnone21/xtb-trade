@@ -1,8 +1,7 @@
 from dataclasses import dataclass, field
 from itertools import count
 from typing import Union, List
-from classes import Profile
-from bt_fx import FXMODE
+from classes import Profile, FXMODE
 from pandas import DataFrame, to_datetime
 
 
@@ -42,6 +41,8 @@ class Orders:
         return len(orders)
 
     def eval_performance(self):
+        if not self.records:
+            return
         df = DataFrame([tx.__dict__ for tx in self.records])
         df['cmd'] = df['mode'].apply(lambda mode: FXMODE(mode).name)
         df['cum_profit'] = df['profit'].cumsum()

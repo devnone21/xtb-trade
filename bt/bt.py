@@ -1,7 +1,6 @@
 from bt_initial import settings, symbol_digits, ind_presets
-from bt_fx import BtFx, FXTYPE
 from bt_trades import Orders
-from classes import Mongo, Profile
+from classes import Mongo, Profile, Fx, FXTYPE
 from pandas import DataFrame
 import logging
 logger = logging.getLogger('xtb.backtest')
@@ -44,7 +43,7 @@ class Result:
         if not len(candles):
             return False
         # evaluate
-        fx = BtFx(indicator=x.indicator, tech=ind_presets.get(x.ind_preset))
+        fx = Fx(indicator=x.indicator, tech=ind_presets.get(x.ind_preset))
         fx.evaluate(candles)
         logger.debug(f'GenFX: shape is {fx.df.shape}')
         self.df = fx.df
@@ -68,6 +67,7 @@ class Result:
                     close_price=row['close']
                 )
         self.orders.eval_performance()
+        # self.df.to_csv(f'df_{self.symbol}_{self.app.param.timeframe}.csv', index=False)
 
     def merge_orders_df(self):
         """extend df with orders"""
@@ -90,7 +90,7 @@ def run(app: Profile):
         r = Result(symbol, app)
         if r.gen_signal():
             r.sim_trades()
-            # r.merge_orders_df()
+            r.merge_orders_df()
         perf.append(r.orders.performance)
     DataFrame(perf, index=[f'{s}_{x.timeframe}' for s in x.symbols])\
         .to_csv(f'perf_{app.name}.csv')
