@@ -2,8 +2,13 @@ from bt_initial import settings, symbol_digits, ind_presets
 from bt_trades import Orders
 from classes import Mongo, Profile, Fx, FXTYPE
 from pandas import DataFrame
+import pandas_ta as ta
 import logging
 logger = logging.getLogger('xtb.backtest')
+add_tech = [
+    {"kind": "bbands", "length": 20},
+    {"kind": "ema", "length": 50}
+]
 
 
 class Result:
@@ -42,6 +47,8 @@ class Result:
         candles = self.get_candles()
         if not len(candles):
             return False
+        # pre-analysis
+        candles.ta.strategy(ta.Strategy(name='Bt', ta=add_tech))
         # evaluate
         fx = Fx(indicator=x.indicator, tech=ind_presets.get(x.ind_preset))
         fx.evaluate(candles)

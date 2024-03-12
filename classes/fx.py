@@ -144,6 +144,6 @@ class Fx:
         self.df[cd0] = self.df[cd].shift()
         self.df.dropna(inplace=True, ignore_index=True)
         # apply
-        self.df[['fx_type', 'fx_mode', 'scene']] = DataFrame(
+        self.df[['fx_type', 'fx_mode']] = DataFrame(
             self.df[[ck0, cd0, ck, cd, ca0, cb0, ca, cb]].apply(stoch_x, axis=1).values.tolist()
         )
