@@ -83,7 +83,8 @@ def run(app):
     # init chat notification
     report = Notify(title=f'[{app.name.upper()}-{x.account.name}]')
     # check if App's timing to be run
-    if report.ts.minute % x.timeframe > 5:
+    system_ts = datetime.today()
+    if system_ts.minute % x.timeframe > 5:
         return False
     # Start here
     logger.debug(f'Running: {app.param}')
@@ -105,18 +106,16 @@ def run(app):
     logger.info(f'{report.title} Market status: {market_status}')
     tx = Trade(client=client, param=app.param)
     for symbol, status in market_status.items():
-        if not status:
-            continue
-
-        # Market open, check signal
+        # Validate market status, signal and data timestamp
         r = Result(symbol, app, client=client)
         r.market_status = status
         r.gen_signal()
-        if not r.action:
+        data_ts = report.setts(datetime.fromtimestamp(int(r.epoch_ms)/1000))
+        delta_ts = system_ts - data_ts
+        if (not status) or (not r.action) or (delta_ts > x.timeframe + 5):
             continue
-        ts = report.setts(datetime.fromtimestamp(int(r.epoch_ms)/1000))
-        report_ts = ts.strftime("%Y-%m-%d %H:%M:%S")
-        logger.info(f'Signal: {symbol}, {r.action}, {r.mode.upper()}, {r.price} at {report_ts}')
+        report_time = data_ts.strftime("%Y-%m-%d %H:%M:%S")
+        logger.info(f'Signal: {symbol}, {r.action}, {r.mode.upper()}, {r.price} at {report_time}')
         debug_col_idx = [0, 1, 3, -7, -6, -5, -4, -3, -2, -1]
         logger.debug(f'{symbol} - ' + r.df.tail(2).head(1).iloc[:, debug_col_idx].to_string(header=False))
         logger.debug(f'{symbol} - ' + r.df.tail(1).iloc[:, debug_col_idx].to_string(header=False))
@@ -125,12 +124,12 @@ def run(app):
         if r.action in ('open',):
             res = tx.trigger_open(symbol=symbol, mode=r.mode)
             report.print_notify(
-                f'>> {symbol}: Open-{r.mode.upper()} by {x.volume} at {report_ts}, {res}')
+                f'>> {symbol}: Open-{r.mode.upper()} by {x.volume} at {report_time}, {res}')
             logger.info(report.lastmsg.strip())
         elif r.action in ('close',):
             res = tx.trigger_close(symbol=symbol, mode=r.mode)
             report.print_notify(
-                f'>> {symbol}: Close-{r.mode.upper()} at {report_ts}, {res}')
+                f'>> {symbol}: Close-{r.mode.upper()} at {report_time}, {res}')
             logger.info(report.lastmsg.strip())
 
     # store tx records in cache
