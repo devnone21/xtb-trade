@@ -1,5 +1,5 @@
-from bt_initial import settings, symbol_digits, ind_presets
-from bt_trades import Orders
+from .bt_initial import settings, symbol_digits, ind_presets
+from .bt_trades import Orders
 from classes import Mongo, Profile, Fx, FXTYPE
 from pandas import DataFrame
 import pandas_ta as ta
@@ -7,7 +7,8 @@ import logging
 logger = logging.getLogger('xtb.backtest')
 add_tech = [
     {"kind": "bbands", "length": 20},
-    {"kind": "ema", "length": 50}
+    {"kind": "macd", "signal_indicators": True},
+    # {"kind": "ema", "length": 50}
 ]
 
 
@@ -44,16 +45,17 @@ class Result:
 
     def gen_signal(self):
         x = self.app.param
-        candles = self.get_candles()
-        if not len(candles):
+        # candles = self.get_candles()
+        if not len(self.candles):
             return False
         # pre-analysis
-        candles.ta.strategy(ta.Strategy(name='Bt', ta=add_tech))
+        self.df = self.candles.copy()
+        self.df.ta.strategy(ta.Strategy(name='Bt', ta=add_tech))
         # evaluate
         fx = Fx(indicator=x.indicator, tech=ind_presets.get(x.ind_preset))
-        fx.evaluate(candles)
+        fx.evaluate(self.df)
         logger.debug(f'GenFX: shape is {fx.df.shape}')
-        self.df = fx.df
+        self.df = fx.df.copy()
         return True
 
     def sim_trades(self):
@@ -88,6 +90,7 @@ class Result:
             "open_ctm", "close_ctm", "open_time", "close_time",
         ]
         self.orders.df[selected_cols].to_csv(f'orders_{self.symbol}_{self.app.param.timeframe}.csv', index=False)
+        return df
 
 
 def run(app: Profile):
@@ -95,6 +98,7 @@ def run(app: Profile):
     perf = []
     for symbol in x.symbols:
         r = Result(symbol, app)
+        r.get_candles()
         if r.gen_signal():
             r.sim_trades()
             r.merge_orders_df()
