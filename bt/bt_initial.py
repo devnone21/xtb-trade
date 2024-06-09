@@ -68,6 +68,18 @@ ind_presets = {
             "xa": 80, "xb": 20
         }
   ],
+  "TA_EMAX_F10_S25": [
+        {"kind": "ema", "length": 10},
+        {"kind": "ema", "length": 25},
+  ],
+  "TA_EMAX_F10_S50": [
+        {"kind": "ema", "length": 10},
+        {"kind": "ema", "length": 50},
+  ],
+  "TA_EMAX_F25_S50": [
+        {"kind": "ema", "length": 25},
+        {"kind": "ema", "length": 50},
+  ],
 }
 symbol_digits = {
     "GOLD": 2,

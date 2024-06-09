@@ -13,10 +13,13 @@ class Trade:
     mode: int
     volume: Union[float, int]
     open_price: Union[float, int]
+    tp_price: Union[float, int]
+    sl_price: Union[float, int]
     close_ctm: Union[int, None] = None
     close_price: Union[float, int, None] = None
     profit: Union[float, int] = 0.0
     closed: bool = False
+    remark: str = ''
 
 
 @dataclass
@@ -28,8 +31,17 @@ class Orders:
     df: DataFrame = DataFrame()
     performance: dict = field(default_factory=dict)
 
-    def open_trade(self, mode: int, open_ctm: int, open_price: Union[float, int]) -> Trade:
-        return Trade(open_ctm, self.symbol, mode, self.volume, open_price)
+    def open_trade(self, mode: int, open_ctm: int, open_price: Union[float, int], **kwargs) -> Trade:
+        rate_tp = kwargs.pop("rate_tp", 0)
+        rate_sl = kwargs.pop("rate_sl", 0)
+        tp = sl = 0
+        if mode == FXMODE.BUY.value:
+            tp = open_price + rate_tp if rate_tp else tp
+            sl = open_price - rate_sl if rate_sl else sl
+        elif mode == FXMODE.SELL.value:
+            tp = open_price - rate_tp if rate_tp else tp
+            sl = open_price + rate_sl if rate_sl else sl
+        return Trade(open_ctm, self.symbol, mode, self.volume, open_price, tp, sl)
 
     def close_trade(self, mode: int, close_ctm: int, close_price: Union[float, int]):
         orders = [tx for tx in self.records if tx.mode == mode and not tx.closed]
@@ -38,6 +50,26 @@ class Orders:
             tx.close_ctm = close_ctm
             tx.close_price = close_price
             tx.profit = (close_price - tx.open_price) * (10**self.digits) * tx.volume * mode
+        return len(orders)
+
+    def take_profit(self, close_ctm: int, close_price: Union[float, int]):
+        orders = [tx for tx in self.records if not tx.closed and (close_price - tx.tp_price) * tx.mode > 0]
+        for tx in orders:
+            tx.closed = True
+            tx.close_ctm = close_ctm
+            tx.close_price = tx.tp_price
+            tx.profit = (tx.tp_price - tx.open_price) * (10 ** self.digits) * tx.volume * tx.mode
+            tx.remark = 'TP'
+        return len(orders)
+
+    def stop_loss(self, close_ctm: int, close_price: Union[float, int]):
+        orders = [tx for tx in self.records if not tx.closed and (close_price - tx.sl_price) * tx.mode < 0]
+        for tx in orders:
+            tx.closed = True
+            tx.close_ctm = close_ctm
+            tx.close_price = tx.sl_price
+            tx.profit = (tx.sl_price - tx.open_price) * (10 ** self.digits) * tx.volume * tx.mode
+            tx.remark = 'SL'
         return len(orders)
 
     def eval_performance(self):
@@ -67,7 +99,7 @@ class Orders:
         df['close_time'] = df['close_utc'].dt.tz_convert('Asia/Bangkok')
         orders_cols = [
             "order_id", "mode", "cmd", "volume", "open_price", "close_price", "profit", "cum_profit",
-            "open_ctm", "close_ctm", "open_utc", "close_utc", "open_time", "close_time",
+            "open_ctm", "close_ctm", "open_utc", "close_utc", "open_time", "close_time", "remark",
         ]
         self.df = df[orders_cols]
 

@@ -1,8 +1,8 @@
-from .bt_initial import settings, symbol_digits, ind_presets
-from .bt_trades import Orders
+from bt_initial import settings, symbol_digits, ind_presets
+from bt_trades import Orders
 from classes import Mongo, Profile, Fx, FXTYPE
 from pandas import DataFrame
-import pandas_ta as ta
+# import pandas_ta as ta
 import logging
 logger = logging.getLogger('xtb.backtest')
 add_tech = [
@@ -50,7 +50,7 @@ class Result:
             return False
         # pre-analysis
         self.df = self.candles.copy()
-        self.df.ta.strategy(ta.Strategy(name='Bt', ta=add_tech))
+        # self.df.ta.strategy(ta.Strategy(name='Bt', ta=add_tech))
         # evaluate
         fx = Fx(indicator=x.indicator, tech=ind_presets.get(x.ind_preset))
         fx.evaluate(self.df)
@@ -61,11 +61,21 @@ class Result:
     def sim_trades(self):
         self.df['order_id'] = 0
         for i, row in self.df.iterrows():
+            self.orders.take_profit(
+                close_ctm=int(row['ctm']),
+                close_price=row['close']
+            )
+            self.orders.stop_loss(
+                close_ctm=int(row['ctm']),
+                close_price=row['close']
+            )
             if row['fx_type'] == FXTYPE.OPEN.value:
                 tx = self.orders.open_trade(
                     mode=int(row['fx_mode']),
                     open_ctm=int(row['ctm']),
-                    open_price=row['close']
+                    open_price=row['close'],
+                    rate_tp=self.app.param.rate_tp,
+                    rate_sl=self.app.param.rate_sl,
                 )
                 self.orders.records.append(tx)
                 self.df.at[i, 'order_id'] = tx.order_id
@@ -75,6 +85,7 @@ class Result:
                     close_ctm=int(row['ctm']),
                     close_price=row['close']
                 )
+
         self.orders.eval_performance()
         # self.df.to_csv(f'df_{self.symbol}_{self.app.param.timeframe}.csv', index=False)
 
@@ -83,13 +94,14 @@ class Result:
         df = self.df.merge(self.orders.df, how='left', on='order_id', indicator=True)
 
         # export df in csv/feather
-        df.to_csv(f'df_{self.symbol}_{self.app.param.timeframe}.csv', index=False)
+        x = self.app.param
+        df.to_csv(f'df_{self.symbol}_{x.timeframe}_{x.ind_preset}.csv', index=False)
 
         selected_cols = [
             "order_id", "cmd", "volume", "open_price", "close_price", "profit", "cum_profit",
             "open_ctm", "close_ctm", "open_time", "close_time",
         ]
-        self.orders.df[selected_cols].to_csv(f'orders_{self.symbol}_{self.app.param.timeframe}.csv', index=False)
+        self.orders.df[selected_cols].to_csv(f'orders_{self.symbol}_{x.timeframe}_{x.ind_preset}.csv', index=False)
         return df
 
 
