@@ -113,7 +113,7 @@ def run(app):
             r.gen_signal(preset)
             data_ts = report.setts(datetime.fromtimestamp(int(r.epoch_ms)/1000))
             delta_ts = system_ts - data_ts
-            if (not status) or (not r.action) or (delta_ts.total_seconds()/60 > x.timeframe + 5):
+            if (not status) or (not r.action) or (delta_ts.seconds // 60 > x.timeframe + 5):
                 continue
             report_time = data_ts.strftime("%Y-%m-%d %H:%M:%S")
             logger.info(f'Signal: {symbol}, {r.action}, {r.mode.upper()}, {r.price} at {report_time}')
