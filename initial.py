@@ -62,14 +62,26 @@ ind_presets = {
             "xa": 80, "xb": 20
         }
   ],
+  "TA_EMAX_F10_S25": [
+        {"kind": "ema", "length": 10},
+        {"kind": "ema", "length": 25},
+  ],
+  "TA_EMAX_F10_S50": [
+        {"kind": "ema", "length": 10},
+        {"kind": "ema", "length": 50},
+  ],
+  "TA_EMAX_F25_S50": [
+        {"kind": "ema", "length": 25},
+        {"kind": "ema", "length": 50},
+  ],
 }
 
 # Uncomment if KV settings is used
-_kv = KV()
-settings = Settings(**_kv.query())
+# _kv = KV()
+# settings = Settings(**_kv.query())
 
 # Uncomment if local settings is used
-# settings = Settings(**json.load(open('settings.json')))
+settings = Settings(**json.load(open('settings.json')))
 
 if __name__ == '__main__':
     print(settings.profiles)

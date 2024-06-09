@@ -61,14 +61,13 @@ class Result:
         self.digits = digits
         return candles
 
-    def gen_signal(self):
+    def gen_signal(self, preset):
         x = self.app.param
-        candles = self.get_candles()
-        if not len(candles):
+        if not len(self.candles):
             return False
         # evaluate
-        fx = Fx(indicator=x.indicator, tech=ind_presets.get(x.ind_preset))
-        fx.evaluate(candles)
+        fx = Fx(indicator=x.indicator, tech=ind_presets.get(preset))
+        fx.evaluate(self.candles)
         self.df = fx.df
         self.price = self.df.iloc[-1]['close']
         self.epoch_ms = self.df.iloc[-1]['ctm']
@@ -89,7 +88,7 @@ def run(app):
     # Start here
     logger.debug(f'Running: {app.param}')
     # check App's breaker status
-    if not x.breaker:
+    if not x.breaker and not x.signal:
         logger.debug('Breaker is OFF.')
         return False
     # start X connection
@@ -109,28 +108,41 @@ def run(app):
         # Validate market status, signal and data timestamp
         r = Result(symbol, app, client=client)
         r.market_status = status
-        r.gen_signal()
-        data_ts = report.setts(datetime.fromtimestamp(int(r.epoch_ms)/1000))
-        delta_ts = system_ts - data_ts
-        if (not status) or (not r.action) or (delta_ts > x.timeframe + 5):
-            continue
-        report_time = data_ts.strftime("%Y-%m-%d %H:%M:%S")
-        logger.info(f'Signal: {symbol}, {r.action}, {r.mode.upper()}, {r.price} at {report_time}')
-        debug_col_idx = [0, 1, 3, -7, -6, -5, -4, -3, -2, -1]
-        logger.debug(f'{symbol} - ' + r.df.tail(2).head(1).iloc[:, debug_col_idx].to_string(header=False))
-        logger.debug(f'{symbol} - ' + r.df.tail(1).iloc[:, debug_col_idx].to_string(header=False))
+        r.get_candles()
+        for preset in x.ind_preset:
+            r.gen_signal(preset)
+            data_ts = report.setts(datetime.fromtimestamp(int(r.epoch_ms)/1000))
+            delta_ts = system_ts - data_ts
+            if (not status) or (not r.action) or (delta_ts.total_seconds()/60 > x.timeframe + 5):
+                continue
+            report_time = data_ts.strftime("%Y-%m-%d %H:%M:%S")
+            logger.info(f'Signal: {symbol}, {r.action}, {r.mode.upper()}, {r.price} at {report_time}')
+            debug_col_idx = [0, 1, 3, -7, -6, -5, -4, -3, -2, -1]
+            logger.debug(f'{symbol} - ' + r.df.tail(2).head(1).iloc[:, debug_col_idx].to_string(header=False))
+            logger.debug(f'{symbol} - ' + r.df.tail(1).iloc[:, debug_col_idx].to_string(header=False))
 
-        # Check signal to open/close transaction
-        if r.action in ('open',):
-            res = tx.trigger_open(symbol=symbol, mode=r.mode)
-            report.print_notify(
-                f'>> {symbol}: Open-{r.mode.upper()} by {x.volume} at {report_time}, {res}')
-            logger.info(report.lastmsg.strip())
-        elif r.action in ('close',):
-            res = tx.trigger_close(symbol=symbol, mode=r.mode)
-            report.print_notify(
-                f'>> {symbol}: Close-{r.mode.upper()} at {report_time}, {res}')
-            logger.info(report.lastmsg.strip())
+            # Check signal to open/close transaction
+            if x.signal and r.action.lower() in ('open',):
+                tech = ind_presets.get(preset)
+                fast = tech[0].get('length')
+                slow = tech[1].get('length')
+                if r.mode.lower() in ('buy',):
+                    report.print_notify(f'>> {symbol}: EMA {fast}/{slow} Cross-UP at {report_time}')
+                    logger.info(report.lastmsg.strip())
+                else:
+                    report.print_notify(f'>> {symbol}: EMA {fast}/{slow} Cross-DOWN at {report_time}')
+                    logger.info(report.lastmsg.strip())
+
+            if x.breaker and r.action.lower() in ('open',):
+                res = tx.trigger_open(symbol=symbol, mode=r.mode)
+                report.print_notify(
+                    f'>> {symbol}: Open-{r.mode.upper()} by {x.volume} at {report_time}, {res}')
+                logger.info(report.lastmsg.strip())
+            # elif r.action in ('close',):
+            #     res = tx.trigger_close(symbol=symbol, mode=r.mode)
+            #     report.print_notify(
+            #         f'>> {symbol}: Close-{r.mode.upper()} at {report_time}, {res}')
+            #     logger.info(report.lastmsg.strip())
 
     # store tx records in cache
     tx.store_records(x.account.name)

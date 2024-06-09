@@ -54,6 +54,36 @@ class Fx:
         func = getattr(Fx, f'_evaluate_{self.name}')
         return func(self)
 
+    def _evaluate_emax(self):
+        """As evaluate function, takes DataFrame candles contains 'EMA...' column,
+        return: (str)what_to_action, (str)mode_buy_or_sell.
+        """
+        def ema_x(row):
+            f1, s1, f2, s2 = row.values.tolist()
+            if f1 > s1 and f2 < s2:
+                return {'fx_type': FXTYPE.OPEN.value, 'fx_mode': FXMODE.SELL.value}
+            if f1 < s1 and f2 > s2:
+                return {'fx_type': FXTYPE.OPEN.value, 'fx_mode': FXMODE.BUY.value}
+            return {'fx_type': FXTYPE.STAY.value, 'fx_mode': FXMODE.NA.value}
+
+        self.name = 'emax'
+        cols = self.df.columns.to_list()
+        cols_ema = [c for c in cols if c.startswith('EMA')]
+        if len(cols_ema) != 2:
+            return
+        ca = cols_ema[0]
+        cb = cols_ema[-1]
+        ca0 = 'prev' + ca
+        cb0 = 'prev' + cb
+        # extend columns with previous row's values
+        self.df[ca0] = self.df[ca].shift()
+        self.df[cb0] = self.df[cb].shift()
+        self.df.dropna(inplace=True, ignore_index=True)
+        # apply
+        self.df[['fx_type', 'fx_mode']] = DataFrame(
+            self.df[[ca0, cb0, ca, cb]].apply(ema_x, axis=1).values.tolist()
+        )
+
     def _evaluate_rsi(self):
         """As evaluate function, takes DataFrame candles contains 'RSI..._A_' or 'RSI..._B_' column,
         return: (str)what_to_action, (str)mode_buy_or_sell.

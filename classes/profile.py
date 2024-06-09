@@ -22,11 +22,14 @@ class Param:
     symbols: List[str]
     timeframe: int
     breaker: bool = False
+    signal: bool = False
     volume: float = 0.01
     rate_tp: Union[float, int] = 0
     rate_sl: Union[float, int] = 0
+    pip_tp: Union[float, int] = 0
+    pip_sl: Union[float, int] = 0
     indicator: str = 'rsi'
-    ind_preset: str = ''
+    ind_preset: Union[List[str], str] = ''
 
     @field_validator('account', mode='before')
     def account_post_init(cls, v):
