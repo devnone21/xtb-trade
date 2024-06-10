@@ -15,7 +15,8 @@ class Trade:
     def trigger_open(self, symbol, mode='buy'):
         try:
             return self.client.open_trade(mode, symbol, self.param.volume,
-                                          rate_tp=self.param.rate_tp, rate_sl=self.param.rate_sl)
+                                          rate_tp=self.param.rate_tp, rate_sl=self.param.rate_sl,
+                                          pip_tp=self.param.pip_tp, pip_sl=self.param.pip_sl)
         except TransactionRejected as e:
             return e
 
