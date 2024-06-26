@@ -22,6 +22,7 @@ class Result:
         self.price = 0.0
         self.action = ''
         self.mode = ''
+        self.inv_mode = ''
 
     def get_candles(self):
         logger = logging.getLogger(f'xtb.{self.app.name}')
@@ -73,6 +74,7 @@ class Result:
         self.epoch_ms = self.df.iloc[-1]['ctm']
         self.action = FXTYPE(self.df.iloc[-1]['fx_type']).name.lower()
         self.mode = FXMODE(self.df.iloc[-1]['fx_mode']).name.lower()
+        self.inv_mode = FXMODE(-1 * self.df.iloc[-1]['fx_mode']).name.lower()
         return True
 
 
@@ -139,10 +141,10 @@ def run(app):
                     f'>> {symbol}: Open-{r.mode.upper()} by {x.volume} at {report_time}, {res}')
                 logger.info(report.lastmsg.strip())
             # elif r.action in ('close',):
-            #     res = tx.trigger_close(symbol=symbol, mode=r.mode)
-            #     report.print_notify(
-            #         f'>> {symbol}: Close-{r.mode.upper()} at {report_time}, {res}')
-            #     logger.info(report.lastmsg.strip())
+                res = tx.trigger_close(symbol=symbol, mode=r.inv_mode)
+                report.print_notify(
+                    f'>> {symbol}: Close-{r.inv_mode.upper()} at {report_time}, {res}')
+                logger.info(report.lastmsg.strip())
 
     # store tx records in cache
     tx.store_records(x.account.name)

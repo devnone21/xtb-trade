@@ -84,6 +84,32 @@ class Fx:
             self.df[[ca0, cb0, ca, cb]].apply(ema_x, axis=1).values.tolist()
         )
 
+    def _evaluate_macd(self):
+        """As evaluate function, takes DataFrame candles contains 'MACD..._XA_0' column,
+        return: (str)what_to_action, (str)mode_buy_or_sell.
+        """
+        def macd_x(row):
+            xa, xb = row.values.tolist()
+            if xa:
+                return {'fx_type': FXTYPE.OPEN.value, 'fx_mode': FXMODE.BUY.value}
+            if xb:
+                return {'fx_type': FXTYPE.OPEN.value, 'fx_mode': FXMODE.SELL.value}
+            return {'fx_type': FXTYPE.STAY.value, 'fx_mode': FXMODE.NA.value}
+
+        self.name = 'macd'
+        cols = self.df.columns.to_list()
+        col_xa = {'name': c for c in cols if c.startswith('MACD') and ('_XA_' in c)}
+        col_xb = {'name': c for c in cols if c.startswith('MACD') and ('_XB_' in c)}
+        if not col_xa or not col_xb:
+            return
+        ca = col_xa['name']
+        cb = col_xb['name']
+        # apply
+        self.df.dropna(inplace=True, ignore_index=True)
+        self.df[['fx_type', 'fx_mode']] = DataFrame(
+            self.df[[ca, cb]].apply(macd_x, axis=1).values.tolist()
+        )
+
     def _evaluate_rsi(self):
         """As evaluate function, takes DataFrame candles contains 'RSI..._A_' or 'RSI..._B_' column,
         return: (str)what_to_action, (str)mode_buy_or_sell.
